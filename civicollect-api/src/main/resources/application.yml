@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: civicollect-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/civicollect}
+    username: ${DB_USER:civicollect}
+    password: ${DB_PASSWORD:civicollect}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: ${DDL_AUTO:update}   # en production : "validate" + migrations Flyway
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+  jackson:
+    default-property-inclusion: non_null
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8080
+  compression:
+    enabled: true            # faible débit : réponses compressées
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-change-me-64-chars-minimum!!}
+    expiration-minutes: 120
+  scoring:
+    support-cap: 50           # plafonnement du poids des soutiens (risque : groupes organisés)
+  duplicates:
+    threshold: 0.45           # similarité de Jaccard minimale pour suggérer un doublon
+  storage:
+    upload-dir: ${UPLOAD_DIR:./uploads}
+    max-file-size-bytes: 5242880
+  rate-limit:
+    per-hour: 20
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
+  bootstrap:
+    admin-email: ${ADMIN_EMAIL:admin@civicollect.sn}
+    admin-password: ${ADMIN_PASSWORD:Admin@12345}   # À CHANGER en production
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

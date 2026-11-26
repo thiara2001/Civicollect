@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: civicollect
+      POSTGRES_USER: civicollect
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-civicollect}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civicollect"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/civicollect
+      DB_USER: civicollect
+      DB_PASSWORD: ${DB_PASSWORD:-civicollect}
+      JWT_SECRET: ${JWT_SECRET:?définir JWT_SECRET (64 caractères minimum)}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@civicollect.sn}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?définir ADMIN_PASSWORD}
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads:/app/uploads
+
+volumes:
+  pgdata:
+  uploads:
