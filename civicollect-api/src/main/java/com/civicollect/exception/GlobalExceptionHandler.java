@@ -8,7 +8,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.LinkedHashMap;
@@ -51,10 +50,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Opération impossible : conflit avec des données existantes");
     }
 
-    @org.springframework.web.bind.annotation.ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ProblemDetail> handleUpload(MaxUploadSizeExceededException e) {
-        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "Fichier trop volumineux");
-    }
 
     @org.springframework.web.bind.annotation.ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleOther(Exception e) {

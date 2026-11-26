@@ -2,15 +2,16 @@ spring:
   application:
     name: civicollect-api
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/civicollect}
-    username: ${DB_USER:civicollect}
-    password: ${DB_PASSWORD:civicollect}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/civicollect}
+    username: ${DB_USER:root}
+    password:
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: ${DDL_AUTO:update}   # en production : "validate" + migrations Flyway
     properties:
       hibernate.jdbc.time_zone: UTC
+      hibernate.hibernate.dialect: org.hibernate.dialect.MySQL8Dialect
   servlet:
     multipart:
       max-file-size: 5MB
