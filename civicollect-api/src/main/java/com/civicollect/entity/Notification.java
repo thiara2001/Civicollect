@@ -1,4 +1,4 @@
-package com.civicollect.domain;
+package com.civicollect.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;

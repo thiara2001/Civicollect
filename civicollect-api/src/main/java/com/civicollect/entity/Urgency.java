@@ -1,4 +1,4 @@
-package com.civicollect.domain;
+package com.civicollect.entity;
 
 public enum Urgency {
     FAIBLE(0.25), MOYENNE(0.50), ELEVEE(0.75), CRITIQUE(1.00);

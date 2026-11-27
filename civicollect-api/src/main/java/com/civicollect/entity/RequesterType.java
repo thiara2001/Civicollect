@@ -1,3 +1,3 @@
-package com.civicollect.domain;
+package com.civicollect.entity;
 
 public enum RequesterType { HABITANT, ASSOCIATION, ORGANISATION }

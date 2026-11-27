@@ -1,5 +1,6 @@
-package com.civicollect.domain;
+package com.civicollect.entity;
 
+import com.civicollect.domain.Need;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

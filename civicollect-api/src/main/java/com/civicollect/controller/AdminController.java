@@ -1,4 +1,4 @@
-package com.civicollect.web;
+package com.civicollect.controller;
 
 import com.civicollect.domain.NeedStatus;
 import com.civicollect.dto.AdminDtos.*;

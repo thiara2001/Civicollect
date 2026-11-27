@@ -1,4 +1,4 @@
-package com.civicollect.domain;
+package com.civicollect.entity;
 
 public enum Role {
     HABITANT, ASSOCIATION, AGENT, ELU, ADMIN;

@@ -1,4 +1,4 @@
-package com.civicollect.web;
+package com.civicollect.controller;
 
 import com.civicollect.dto.AdminDtos.NotificationResponse;
 import com.civicollect.dto.AuthDtos.*;

@@ -1,4 +1,4 @@
-package com.civicollect.web;
+package com.civicollect.controller;
 
 import com.civicollect.dto.NeedDtos.*;
 import com.civicollect.service.NeedService;
