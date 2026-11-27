@@ -7,6 +7,7 @@ import com.civicollect.dto.AdminDtos.CategoryResponse;
 import com.civicollect.dto.AdminDtos.ZoneResponse;
 import com.civicollect.repository.CategoryRepository;
 import com.civicollect.repository.ZoneRepository;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import java.util.Map;
 
 /** Référentiels en lecture publique, utilisés pour alimenter les formulaires. */
 @Tag(name = "Référentiels")
+@Hidden
 @RestController
 @RequestMapping("/api/reference")
 @RequiredArgsConstructor

@@ -1,5 +1,7 @@
 package com.civicollect.security;
 
+import com.civicollect.service.TokenService;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,10 +21,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
+    private final TokenService tokenService;
 
-    public JwtAuthFilter(JwtService jwtService, AppUserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtService jwtService, AppUserDetailsService userDetailsService, TokenService tokenService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.tokenService = tokenService;
     }
 
     @Override
@@ -31,12 +35,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
             try {
-                Long userId = jwtService.parseUserId(header.substring(7));
-                AuthenticatedUser user = userDetailsService.loadById(userId);
-                if (user.isEnabled()) {
-                    var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
-                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(auth);
+                Claims claims = jwtService.parseClaims(header.substring(7));
+                if (!tokenService.isAccessTokenRevoked(claims.getId())) {
+                    Long userId = Long.valueOf(claims.getSubject());
+                    AuthenticatedUser user = userDetailsService.loadById(userId);
+                    if (user.isEnabled()) {
+                        var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
                 }
             } catch (JwtException | IllegalArgumentException | UsernameNotFoundException ex) {
                 // jeton invalide : la requête reste anonyme et sera rejetée (401) si la route l'exige

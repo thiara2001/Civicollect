@@ -49,6 +49,16 @@ public class NeedWorkflowService {
         return needs.findByStatusAndMergedIntoIsNull(NeedStatus.RECU, p).map(needService::toResponse);
     }
 
+    /** Consulter une contribution à examiner en modération. */
+    @Transactional(readOnly = true)
+    public NeedResponse getForModeration(Long id) {
+        Need n = needService.load(id);
+        if (n.getStatus() == NeedStatus.BROUILLON) {
+            throw new NotFoundException("Contribution introuvable");
+        }
+        return needService.toResponse(n);
+    }
+
     /** RF13 : validation. */
     @Transactional
     public NeedResponse validate(Long id) {

@@ -1,6 +1,5 @@
 package com.civicollect.service.scoring;
 
-import com.civicollect.config.AppProperties;
 import com.civicollect.domain.*;
 import com.civicollect.dto.PriorityDtos.CriterionScore;
 import com.civicollect.dto.PriorityDtos.RankedNeed;
@@ -10,6 +9,7 @@ import com.civicollect.repository.EvaluationRepository;
 import com.civicollect.repository.NeedRepository;
 import com.civicollect.repository.SupportRepository;
 import com.civicollect.repository.ZoneRepository;
+import com.civicollect.service.SystemSettingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +38,7 @@ public class ScoringService {
     private final EvaluationRepository evaluationRepository;
     private final ZoneRepository zoneRepository;
     private final List<ScoringStrategy> strategies;
-    private final AppProperties props;
+    private final SystemSettingService settingService;
 
     /** Classement courant avec les poids enregistrés. */
     @Transactional(readOnly = true)
@@ -176,7 +176,7 @@ public class ScoringService {
         }
         double maxRate = zoneRates.values().stream().mapToDouble(Double::doubleValue).max().orElse(0);
 
-        return new ScoringContext(requests, manual, maxB, maxCost, zoneRates, maxRate, props.scoring().supportCap());
+        return new ScoringContext(requests, manual, maxB, maxCost, zoneRates, maxRate, settingService.getSupportCap());
     }
 
     private Map<Long, Long> supportCounts(Collection<Long> ids) {

@@ -4,6 +4,7 @@ import com.civicollect.dto.AdminDtos.NotificationResponse;
 import com.civicollect.dto.AuthDtos.*;
 import com.civicollect.service.AuthService;
 import com.civicollect.service.NotificationService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @Tag(name = "Mon compte")
+@Hidden
 @RestController
 @RequestMapping("/api/me")
 @RequiredArgsConstructor

@@ -9,4 +9,6 @@ import java.util.List;
 public interface NeedHistoryRepository extends JpaRepository<NeedHistory, Long> {
     @EntityGraph(attributePaths = "actor")
     List<NeedHistory> findByNeedIdOrderByCreatedAtAsc(Long needId);
+
+    void deleteByNeedId(Long needId);
 }

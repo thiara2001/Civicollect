@@ -44,6 +44,10 @@ public class NeedService {
     private final CommentRepository comments;
     private final AttachmentRepository attachments;
     private final NeedHistoryRepository historyRepository;
+    private final EvaluationRepository evaluations;
+    private final DecisionRepository decisions;
+    private final NotificationRepository notifications;
+    private final DuplicateProposalRepository duplicateProposals;
     private final HistoryService history;
     private final AuditService audit;
     private final CurrentUserProvider currentUser;
@@ -65,6 +69,86 @@ public class NeedService {
         needs.save(n);
         history.record(n, "DRAFT_SAVED", null, NeedStatus.BROUILLON, null);
         return toResponse(n);
+    }
+
+    /** Création ou soumission directe d'une contribution (/api/contributions). */
+    @Transactional
+    public NeedResponse createContribution(ContributionRequest r) {
+        User user = users.findById(currentUser.require().getId()).orElseThrow();
+        Need n = new Need();
+        applyRequest(n, new NeedRequest(r.title(), r.description(), r.categoryId(), r.zoneId(),
+                r.address(), r.latitude(), r.longitude(), r.urgency()));
+        n.setRequester(user);
+        n.setRequesterType(user.getRequesterType() != null ? user.getRequesterType() : RequesterType.HABITANT);
+        boolean asDraft = Boolean.TRUE.equals(r.draft());
+        if (asDraft) {
+            n.setStatus(NeedStatus.BROUILLON);
+            needs.save(n);
+            history.record(n, "DRAFT_SAVED", null, NeedStatus.BROUILLON, null);
+            return toResponse(n);
+        }
+        if (n.getDescription() == null || n.getDescription().isBlank() || n.getCategory() == null) {
+            throw new BusinessRuleException("La description et la catégorie sont obligatoires pour soumettre");
+        }
+        n.setStatus(NeedStatus.RECU);
+        n.setSubmittedAt(Instant.now());
+        needs.save(n);
+        assignTrackingNumber(n);
+        history.record(n, "SUBMITTED", null, NeedStatus.RECU, null);
+        events.publishEvent(new NeedStatusChangedEvent(n, NeedStatus.BROUILLON, NeedStatus.RECU, null));
+        return toResponse(n);
+    }
+
+    @Transactional
+    public NeedResponse updateContribution(Long id, ContributionRequest r) {
+        AuthenticatedUser au = currentUser.require();
+        Need n = load(id);
+        boolean owner = n.getRequester() != null && n.getRequester().getId().equals(au.getId());
+        if (!owner && !au.isStaff()) {
+            throw new NotFoundException("Contribution introuvable");
+        }
+        boolean ownerEditable = owner && (n.getStatus() == NeedStatus.BROUILLON || n.getStatus() == NeedStatus.RECU);
+        boolean staffEditable = au.isStaff() && n.getStatus() != NeedStatus.BROUILLON
+                && n.getStatus() != NeedStatus.REJETE && n.getStatus() != NeedStatus.REALISE;
+        if (!ownerEditable && !staffEditable) {
+            throw new BusinessRuleException("Cette contribution n'est plus modifiable");
+        }
+        applyRequest(n, new NeedRequest(r.title(), r.description(), r.categoryId(), r.zoneId(),
+                r.address(), r.latitude(), r.longitude(), r.urgency()));
+        if (n.isComplementRequested()) {
+            n.setComplementRequested(false);
+            history.record(n, "COMPLEMENT_PROVIDED", n.getStatus(), n.getStatus(), "Complément fourni par le demandeur");
+        } else {
+            history.record(n, "UPDATED", n.getStatus(), n.getStatus(), null);
+        }
+        return toResponse(n);
+    }
+
+    @Transactional
+    public void deleteContribution(Long id) {
+        AuthenticatedUser au = currentUser.require();
+        Need n = load(id);
+        boolean owner = n.getRequester() != null && n.getRequester().getId().equals(au.getId());
+        boolean isAdmin = au.getRole() == Role.ADMIN;
+        if (!owner && !isAdmin) {
+            throw new ForbiddenOperationException("Suppression non autorisée");
+        }
+        if (!isAdmin && n.getStatus() != NeedStatus.BROUILLON && n.getStatus() != NeedStatus.RECU) {
+            throw new BusinessRuleException("Seule une contribution en brouillon ou en attente peut être supprimée");
+        }
+        if (needs.existsByMergedIntoId(id)) {
+            throw new BusinessRuleException("Impossible de supprimer une contribution consolidée référencée par d'autres");
+        }
+        duplicateProposals.deleteBySourceNeedIdOrTargetNeedId(id, id);
+        supports.deleteByNeedId(id);
+        comments.deleteByNeedId(id);
+        attachments.deleteByNeedId(id);
+        historyRepository.deleteByNeedId(id);
+        evaluations.deleteByNeedId(id);
+        decisions.deleteByNeedId(id);
+        notifications.deleteByNeedId(id);
+        needs.delete(n);
+        audit.log("CONTRIBUTION_DELETED", "Need", id, n.getTrackingNumber());
     }
 
     @Transactional
@@ -178,6 +262,16 @@ public class NeedService {
         return toResponses(needs.findAll(spec, p), au.getId());
     }
 
+    /** Contributions validées (accessibles publiquement pour consultation). */
+    @Transactional(readOnly = true)
+    public Page<NeedResponse> publicValidated(NeedFilter filter, Pageable pageable) {
+        Long uid = currentUser.find().map(AuthenticatedUser::getId).orElse(null);
+        Pageable p = PageUtils.sanitize(pageable, PageUtils.NEED_SORTS, Sort.by(Sort.Direction.DESC, "submittedAt"));
+        Specification<Need> spec = Specification.where(NeedSpecifications.statusIn(NeedStatus.validated()))
+                .and(NeedSpecifications.filter(filter));
+        return toResponses(needs.findAll(spec, p), uid);
+    }
+
     @Transactional(readOnly = true)
     public List<HistoryEntry> history(Long id) {
         Need n = loadVisible(id);
@@ -224,6 +318,23 @@ public class NeedService {
                 .orElseThrow(() -> new NotFoundException("Vous ne soutenez pas ce besoin"));
         supports.delete(s);
         return new SupportResponse(needId, supports.countByNeedId(needId) , false);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SupportEntryResponse> listSupports(Long needId) {
+        loadVisible(needId);
+        return supports.findByNeedIdOrderByCreatedAtDesc(needId).stream()
+                .map(s -> new SupportEntryResponse(s.getId(), s.getUser().getId(), s.getUser().getFullName(), s.getCreatedAt()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public SupportResponse supportCount(Long needId) {
+        loadVisible(needId);
+        Long uid = currentUser.find().map(AuthenticatedUser::getId).orElse(null);
+        long count = supports.countByNeedId(needId);
+        boolean mine = uid != null && supports.existsByUserIdAndNeedId(uid, needId);
+        return new SupportResponse(needId, count, mine);
     }
 
     // ======================= Commentaires =======================
@@ -291,6 +402,44 @@ public class NeedService {
         return attachments.findByNeedId(needId).stream().map(NeedService::toAttachment).toList();
     }
 
+    @Transactional
+    public AttachmentResponse addPhoto(Long needId, MultipartFile file) {
+        String contentType = file != null ? file.getContentType() : null;
+        if (contentType == null || (!contentType.equals("image/jpeg") && !contentType.equals("image/png"))) {
+            throw new BusinessRuleException("Format de photo invalide (JPEG ou PNG uniquement)");
+        }
+        AuthenticatedUser au = currentUser.require();
+        Need n = load(needId);
+        boolean owner = n.getRequester() != null && n.getRequester().getId().equals(au.getId());
+        boolean ownerEditable = owner && (n.getStatus() == NeedStatus.BROUILLON || n.getStatus() == NeedStatus.RECU);
+        boolean staffEntry = au.isStaff() && n.getStatus() != NeedStatus.REJETE;
+        if (!ownerEditable && !staffEntry) {
+            throw new ForbiddenOperationException("Ajout de photo non autorisé sur cette contribution");
+        }
+        if (attachments.countByNeedId(needId) >= MAX_ATTACHMENTS) {
+            throw new BusinessRuleException("Maximum " + MAX_ATTACHMENTS + " pièces jointes par besoin");
+        }
+        FileStorageService.StoredFile f = storage.store(file, needId);
+        Attachment a = new Attachment();
+        a.setNeed(n);
+        a.setOriginalName(f.originalName());
+        a.setContentType(f.contentType());
+        a.setSizeBytes(f.size());
+        a.setStoragePath(f.relativePath());
+        attachments.save(a);
+        history.record(n, "PHOTO_ADDED", n.getStatus(), n.getStatus(), f.originalName());
+        return toAttachment(a);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AttachmentResponse> photos(Long needId) {
+        loadVisible(needId);
+        return attachments.findByNeedId(needId).stream()
+                .filter(a -> a.getContentType() != null && a.getContentType().startsWith("image/"))
+                .map(NeedService::toAttachment)
+                .toList();
+    }
+
     public record DownloadedFile(Resource resource, String name, String contentType) {}
 
     @Transactional(readOnly = true)
@@ -322,7 +471,7 @@ public class NeedService {
     private Page<NeedResponse> toResponses(Page<Need> page, Long userId) {
         List<Long> ids = page.getContent().stream().map(Need::getId).toList();
         Map<Long, Long> counts = supportCounts(ids);
-        Set<Long> mine = ids.isEmpty() ? Set.of() : new HashSet<>(supports.findSupportedNeedIds(userId, ids));
+        Set<Long> mine = (ids.isEmpty() || userId == null) ? Set.of() : new HashSet<>(supports.findSupportedNeedIds(userId, ids));
         return page.map(n -> NeedMapper.toResponse(n, counts.getOrDefault(n.getId(), 0L), mine.contains(n.getId())));
     }
 

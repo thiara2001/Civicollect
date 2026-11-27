@@ -3,168 +3,116 @@ package com.civicollect.service;
 import com.civicollect.domain.*;
 import com.civicollect.dto.AdminDtos.*;
 import com.civicollect.dto.AuthDtos.UserResponse;
-import com.civicollect.exception.BusinessRuleException;
-import com.civicollect.exception.ConflictException;
-import com.civicollect.exception.NotFoundException;
+import com.civicollect.dto.NeedDtos.NamedRef;
 import com.civicollect.repository.*;
-import com.civicollect.util.TextUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-/** Administration : utilisateurs, rôles, services, référentiels, modèles de messages, audit (RF32-RF35). */
+/** Administration : délégation utilisateurs/référentiels, modèles de messages, audit, indicateurs et paramètres (RF32-RF35). */
 @Service
 @RequiredArgsConstructor
 public class AdminService {
 
+    private final UserService userService;
+    private final ReferenceService referenceService;
+    private final SystemSettingService settingService;
     private final UserRepository users;
-    private final MunicipalServiceRepository municipalServices;
     private final CategoryRepository categories;
     private final ZoneRepository zones;
+    private final MunicipalServiceRepository municipalServices;
+    private final NeedRepository needs;
+    private final DuplicateProposalRepository duplicateProposals;
     private final NotificationTemplateRepository templates;
     private final AuditLogRepository auditLogs;
-    private final PasswordEncoder passwordEncoder;
     private final AuditService audit;
 
     // ---------------- utilisateurs (RF32) ----------------
 
     @Transactional(readOnly = true)
     public Page<UserResponse> listUsers(Pageable pageable) {
-        Pageable p = PageRequest.of(pageable.getPageNumber(), Math.max(1, Math.min(pageable.getPageSize(), 100)),
-                Sort.by("id"));
-        return users.findAll(p).map(com.civicollect.service.AuthService::toUserResponse);
+        return userService.list(pageable);
     }
 
     @Transactional
     public UserResponse createUser(CreateUserRequest r) {
-        String email = TextUtils.blankToNull(r.email());
-        String phone = TextUtils.blankToNull(r.phone());
-        if (email == null && phone == null) throw new BusinessRuleException("Un e-mail ou un téléphone est obligatoire");
-        if (email != null && users.existsByEmailIgnoreCase(email)) throw new ConflictException("E-mail déjà utilisé");
-        if (phone != null && users.existsByPhone(phone)) throw new ConflictException("Téléphone déjà utilisé");
-        User u = new User();
-        u.setFullName(r.fullName().trim());
-        u.setEmail(email != null ? email.toLowerCase() : null);
-        u.setPhone(phone);
-        u.setPasswordHash(passwordEncoder.encode(r.password()));
-        u.setRole(r.role());
-        u.setHabilitated(r.habilitated() && r.role() == Role.ELU);
-        if (r.municipalServiceId() != null) u.setMunicipalService(findService(r.municipalServiceId()));
-        users.save(u);
-        audit.log("USER_CREATED", "User", u.getId(), "role=" + u.getRole());
-        return AuthService.toUserResponse(u);
+        return userService.create(r);
     }
 
     @Transactional
     public UserResponse updateUser(Long id, UpdateUserRequest r) {
-        User u = users.findById(id).orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
-        if (r.role() != null) u.setRole(r.role());
-        if (r.municipalServiceId() != null) u.setMunicipalService(findService(r.municipalServiceId()));
-        if (r.enabled() != null) u.setEnabled(r.enabled());
-        if (r.habilitated() != null) u.setHabilitated(r.habilitated() && u.getRole() == Role.ELU);
-        audit.log("USER_UPDATED", "User", id, "role=" + u.getRole() + ", enabled=" + u.isEnabled()
-                + ", habilitated=" + u.isHabilitated());
-        return AuthService.toUserResponse(u);
+        return userService.update(id, r);
     }
 
     // ---------------- référentiels (RF33) ----------------
 
     @Transactional(readOnly = true)
     public List<CategoryResponse> listCategories() {
-        return categories.findAll(Sort.by("name")).stream().map(AdminService::toResponse).toList();
+        return referenceService.listCategories();
     }
 
     @Transactional
     public CategoryResponse createCategory(ReferenceRequest r) {
-        Category c = new Category();
-        c.setName(r.name().trim());
-        c.setDescription(r.description());
-        categories.save(c);
-        audit.log("CATEGORY_CREATED", "Category", c.getId(), c.getName());
-        return toResponse(c);
+        return referenceService.createCategory(r);
     }
 
     @Transactional
     public CategoryResponse updateCategory(Long id, ReferenceRequest r) {
-        Category c = categories.findById(id).orElseThrow(() -> new NotFoundException("Catégorie introuvable"));
-        c.setName(r.name().trim());
-        c.setDescription(r.description());
-        audit.log("CATEGORY_UPDATED", "Category", id, c.getName());
-        return toResponse(c);
+        return referenceService.updateCategory(id, r);
     }
 
-    /** Désactivation logique : les besoins existants conservent leur catégorie. */
     @Transactional
     public void deactivateCategory(Long id) {
-        Category c = categories.findById(id).orElseThrow(() -> new NotFoundException("Catégorie introuvable"));
-        c.setActive(false);
-        audit.log("CATEGORY_DEACTIVATED", "Category", id, c.getName());
+        referenceService.deactivateCategory(id);
     }
 
     @Transactional(readOnly = true)
     public List<ZoneResponse> listZones() {
-        return zones.findAllByOrderByNameAsc().stream().map(AdminService::toResponse).toList();
+        return referenceService.listQuartiers();
     }
 
     @Transactional
     public ZoneResponse createZone(ReferenceRequest r) {
-        Zone z = new Zone();
-        applyZone(z, r);
-        zones.save(z);
-        audit.log("ZONE_CREATED", "Zone", z.getId(), z.getName());
-        return toResponse(z);
+        return referenceService.createQuartier(r);
     }
 
     @Transactional
     public ZoneResponse updateZone(Long id, ReferenceRequest r) {
-        Zone z = zones.findById(id).orElseThrow(() -> new NotFoundException("Zone introuvable"));
-        applyZone(z, r);
-        audit.log("ZONE_UPDATED", "Zone", id, z.getName());
-        return toResponse(z);
+        return referenceService.updateQuartier(id, r);
     }
 
     @Transactional
     public void deleteZone(Long id) {
-        Zone z = zones.findById(id).orElseThrow(() -> new NotFoundException("Zone introuvable"));
-        zones.delete(z);                    // refusé (409) si des besoins y sont rattachés
-        audit.log("ZONE_DELETED", "Zone", id, z.getName());
+        referenceService.deleteQuartier(id);
     }
 
     @Transactional(readOnly = true)
-    public List<com.civicollect.dto.NeedDtos.NamedRef> listServices() {
-        return municipalServices.findAllByOrderByNameAsc().stream().map(NeedMapper::ref).toList();
+    public List<NamedRef> listServices() {
+        return referenceService.listServices();
     }
 
     @Transactional
-    public com.civicollect.dto.NeedDtos.NamedRef createService(ReferenceRequest r) {
-        MunicipalService s = new MunicipalService();
-        s.setName(r.name().trim());
-        municipalServices.save(s);
-        audit.log("SERVICE_CREATED", "MunicipalService", s.getId(), s.getName());
-        return NeedMapper.ref(s);
+    public NamedRef createService(ReferenceRequest r) {
+        return referenceService.createService(r);
     }
 
     @Transactional
-    public com.civicollect.dto.NeedDtos.NamedRef updateService(Long id, ReferenceRequest r) {
-        MunicipalService s = findService(id);
-        s.setName(r.name().trim());
-        audit.log("SERVICE_UPDATED", "MunicipalService", id, s.getName());
-        return NeedMapper.ref(s);
+    public NamedRef updateService(Long id, ReferenceRequest r) {
+        return referenceService.updateService(id, r);
     }
 
     @Transactional
     public void deleteService(Long id) {
-        MunicipalService s = findService(id);
-        municipalServices.delete(s);
-        audit.log("SERVICE_DELETED", "MunicipalService", id, s.getName());
+        referenceService.deleteService(id);
     }
 
     // ---------------- modèles de notification (RF35) ----------------
@@ -191,27 +139,61 @@ public class AdminService {
         return new TemplateResponse(status, t.getSubject(), t.getBody());
     }
 
-    // ---------------- audit (RF34) ----------------
+    // ---------------- audit & indicateurs (RF34) ----------------
 
     @Transactional(readOnly = true)
     public Page<AuditEntry> auditLog(Pageable pageable) {
         Pageable p = PageRequest.of(pageable.getPageNumber(), Math.max(1, Math.min(pageable.getPageSize(), 200)),
                 Sort.by(Sort.Direction.DESC, "id"));
-        return auditLogs.findAll(p).map(a -> new AuditEntry(a.getId(), a.getActor(), a.getAction(), a.getEntityType(),
-                a.getEntityId(), a.getDetails(), a.getCreatedAt()));
+        return auditLogs.findAll(p).map(AdminService::toAuditEntry);
+    }
+
+    @Transactional(readOnly = true)
+    public AdminDashboardResponse dashboard() {
+        Map<String, Long> byRole = new LinkedHashMap<>();
+        for (Role r : Role.values()) {
+            byRole.put(r.name(), 0L);
+        }
+        for (Object[] row : users.countByRoleGroup()) {
+            if (row[0] != null) {
+                byRole.put(((Role) row[0]).name(), ((Number) row[1]).longValue());
+            }
+        }
+        List<AuditEntry> recent = auditLogs.findTop10ByOrderByIdDesc().stream()
+                .map(AdminService::toAuditEntry)
+                .toList();
+
+        return new AdminDashboardResponse(
+                users.count(),
+                users.countByEnabledTrue(),
+                byRole,
+                categories.count(),
+                categories.findByActiveTrueOrderByNameAsc().size(),
+                zones.count(),
+                municipalServices.count(),
+                needs.countByMergedIntoIsNull(),
+                needs.countByStatusAndMergedIntoIsNull(NeedStatus.RECU),
+                duplicateProposals.countByStatus(DuplicateStatus.POTENTIAL),
+                auditLogs.count(),
+                recent
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public SystemSettingsResponse getSettings() {
+        return settingService.currentSettings();
+    }
+
+    @Transactional
+    public SystemSettingsResponse updateSettings(UpdateSystemSettingsRequest r) {
+        return settingService.updateSettings(r);
     }
 
     // ---------------------------------------------------------------
 
-    private MunicipalService findService(Long id) {
-        return municipalServices.findById(id).orElseThrow(() -> new NotFoundException("Service municipal introuvable"));
-    }
-
-    private static void applyZone(Zone z, ReferenceRequest r) {
-        z.setName(r.name().trim());
-        z.setLatitude(r.latitude());
-        z.setLongitude(r.longitude());
-        z.setPopulation(r.population());
+    private static AuditEntry toAuditEntry(AuditLog a) {
+        return new AuditEntry(a.getId(), a.getActor(), a.getAction(), a.getEntityType(),
+                a.getEntityId(), a.getDetails(), a.getCreatedAt());
     }
 
     static CategoryResponse toResponse(Category c) {

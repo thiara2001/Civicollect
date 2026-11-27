@@ -9,4 +9,6 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
     List<Attachment> findByNeedId(Long needId);
 
     long countByNeedId(Long needId);
+
+    void deleteByNeedId(Long needId);
 }

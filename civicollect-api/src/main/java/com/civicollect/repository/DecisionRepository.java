@@ -9,4 +9,6 @@ import java.util.List;
 public interface DecisionRepository extends JpaRepository<Decision, Long> {
     @EntityGraph(attributePaths = "decider")
     List<Decision> findByNeedIdOrderByCreatedAtDesc(Long needId);
+
+    void deleteByNeedId(Long needId);
 }

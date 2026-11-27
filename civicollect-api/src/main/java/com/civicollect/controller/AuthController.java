@@ -1,4 +1,4 @@
-package com.civicollect.web;
+package com.civicollect.controller;
 
 import com.civicollect.dto.AuthDtos.*;
 import com.civicollect.service.AuthService;
@@ -25,6 +25,23 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(@RequestHeader(value = "Authorization", required = false) String auth,
+                       @RequestBody(required = false) LogoutRequest body) {
+        authService.logout(auth, body);
+    }
+
+    @GetMapping("/me")
+    public UserResponse me() {
+        return authService.me();
+    }
+
+    @PostMapping("/refresh")
+    public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return authService.refresh(request);
     }
 
     /** Réponse identique que le compte existe ou non. */

@@ -2,6 +2,7 @@ package com.civicollect.web;
 
 import com.civicollect.dto.NeedDtos.*;
 import com.civicollect.service.NeedService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Tag(name = "Besoins")
+@Hidden
 @RestController
 @RequestMapping("/api/needs")
 @RequiredArgsConstructor

@@ -1,6 +1,7 @@
 package com.civicollect.security;
 
 import com.civicollect.config.AppProperties;
+import com.civicollect.service.TokenService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,9 +27,10 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService,
-                                           AppUserDetailsService userDetailsService, AppProperties props) throws Exception {
+                                           AppUserDetailsService userDetailsService, TokenService tokenService,
+                                           AppProperties props) throws Exception {
         // Les filtres sont instanciés ici (et non exposés comme beans) pour éviter leur double enregistrement servlet.
-        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, userDetailsService);
+        JwtAuthFilter jwtFilter = new JwtAuthFilter(jwtService, userDetailsService, tokenService);
         RateLimitFilter rateLimitFilter = new RateLimitFilter(props.rateLimit().perHour());
 
         http
@@ -41,7 +43,11 @@ public class SecurityConfig {
                         .frameOptions(f -> f.deny())
                         .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/api/auth/**", "/api/public/**", "/api/reference/**").permitAll()
+                        .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh",
+                                "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                        .requestMatchers("/api/public/**", "/api/reference/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/categories/**", "/api/quartiers/**",
+                                "/api/contributions/publiques").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

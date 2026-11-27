@@ -43,6 +43,28 @@ public interface NeedRepository extends JpaRepository<Need, Long>, JpaSpecificat
     List<Need> findTop200ByCategoryIdAndIdNotAndMergedIntoIsNullAndStatusInOrderBySubmittedAtDesc(
             Long categoryId, Long id, Collection<NeedStatus> statuses);
 
+    boolean existsByCategoryId(Long categoryId);
+
+    boolean existsByZoneId(Long zoneId);
+
+    boolean existsByMergedIntoId(Long mergedIntoId);
+
+    long countByMergedIntoIsNull();
+
+    long countByStatusAndMergedIntoIsNull(NeedStatus status);
+
+    @EntityGraph(attributePaths = {"category", "zone"})
+    List<Need> findByStatusInAndMergedIntoIsNullOrderBySubmittedAtDesc(Collection<NeedStatus> statuses);
+
+    @EntityGraph(attributePaths = {"category", "zone", "assignedService"})
+    List<Need> findByStatusNotAndMergedIntoIsNullOrderBySubmittedAtDesc(NeedStatus status);
+
+    @EntityGraph(attributePaths = {"category", "zone", "assignedService"})
+    List<Need> findByZoneIdAndStatusNotAndMergedIntoIsNullOrderBySubmittedAtDesc(Long zoneId, NeedStatus status);
+
+    @EntityGraph(attributePaths = {"category", "zone", "assignedService"})
+    List<Need> findByCategoryIdAndStatusNotAndMergedIntoIsNullOrderBySubmittedAtDesc(Long categoryId, NeedStatus status);
+
     // ---------- Statistiques (RF18, RF20) ----------
     String FILTER = " where n.status <> com.civicollect.domain.NeedStatus.BROUILLON and n.mergedInto is null"
             + " and n.submittedAt between :from and :to ";

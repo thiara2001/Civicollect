@@ -13,4 +13,6 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
 
     @EntityGraph(attributePaths = {"criterion", "need"})
     List<Evaluation> findByNeedIdIn(Collection<Long> needIds);
+
+    void deleteByNeedId(Long needId);
 }

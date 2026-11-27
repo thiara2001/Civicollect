@@ -29,7 +29,15 @@ public final class AuthDtos {
                                RequesterType requesterType, String organizationName,
                                Long municipalServiceId, boolean habilitated, boolean enabled) {}
 
-    public record AuthResponse(String token, String tokenType, long expiresInMinutes, UserResponse user) {}
+    public record AuthResponse(String token, String refreshToken, String tokenType, long expiresInMinutes, UserResponse user) {
+        public AuthResponse(String token, String tokenType, long expiresInMinutes, UserResponse user) {
+            this(token, null, tokenType, expiresInMinutes, user);
+        }
+    }
+
+    public record RefreshTokenRequest(@NotBlank String refreshToken) {}
+
+    public record LogoutRequest(String refreshToken) {}
 
     public record UpdateProfileRequest(
             @NotBlank @Size(max = 120) String fullName,

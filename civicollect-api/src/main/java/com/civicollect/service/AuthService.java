@@ -11,6 +11,8 @@ import com.civicollect.repository.UserRepository;
 import com.civicollect.security.CurrentUserProvider;
 import com.civicollect.security.JwtService;
 import com.civicollect.util.TextUtils;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,6 +39,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final TokenService tokenService;
     private final CurrentUserProvider currentUser;
     private final NotificationService notificationService;
     private final AuditService audit;
@@ -76,12 +79,39 @@ public class AuthService {
         return toAuthResponse(u);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest r) {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(r.identifier().trim(), r.password()));
         User u = users.findByEmailIgnoreCaseOrPhone(r.identifier().trim(), r.identifier().trim())
                 .orElseThrow(() -> new NotFoundException("Utilisateur introuvable"));
         return toAuthResponse(u);
+    }
+
+    @Transactional
+    public AuthResponse refresh(RefreshTokenRequest r) {
+        User u = tokenService.consumeRefreshToken(r.refreshToken().trim());
+        audit.log("TOKEN_REFRESHED", "User", u.getId(), null);
+        return toAuthResponse(u);
+    }
+
+    @Transactional
+    public void logout(String bearerHeader, LogoutRequest body) {
+        Long userId = currentUser.require().getId();
+        if (bearerHeader != null && bearerHeader.startsWith("Bearer ")) {
+            try {
+                Claims claims = jwtService.parseClaims(bearerHeader.substring(7));
+                tokenService.revokeAccessToken(claims.getId(),
+                        claims.getExpiration() != null ? claims.getExpiration().toInstant() : null);
+            } catch (JwtException ignored) {
+                // déjà expiré / invalide
+            }
+        }
+        if (body != null && body.refreshToken() != null && !body.refreshToken().isBlank()) {
+            tokenService.revokeSingleRefreshToken(body.refreshToken().trim());
+        } else {
+            tokenService.revokeUserRefreshTokens(userId);
+        }
+        audit.log("USER_LOGOUT", "User", userId, null);
     }
 
     @Transactional(readOnly = true)
@@ -161,7 +191,9 @@ public class AuthService {
     }
 
     private AuthResponse toAuthResponse(User u) {
-        return new AuthResponse(jwtService.generate(u), "Bearer", jwtService.getExpirationMinutes(), toUserResponse(u));
+        String accessToken = jwtService.generate(u);
+        String refreshToken = tokenService.issueRefreshToken(u);
+        return new AuthResponse(accessToken, refreshToken, "Bearer", jwtService.getExpirationMinutes(), toUserResponse(u));
     }
 
     public static UserResponse toUserResponse(User u) {

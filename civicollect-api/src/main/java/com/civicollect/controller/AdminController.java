@@ -105,4 +105,21 @@ public class AdminController {
     // ---- audit
     @GetMapping("/audit")
     public Page<AuditEntry> audit(Pageable pageable) { return admin.auditLog(pageable); }
+
+    // ---- nouveaux endpoints ----
+
+    @GetMapping("/dashboard")
+    public AdminDashboardResponse dashboard() { return admin.dashboard(); }
+
+    /** Alias /api/admin/logs → même données que /audit. */
+    @GetMapping("/logs")
+    public Page<AuditEntry> logs(Pageable pageable) { return admin.auditLog(pageable); }
+
+    @GetMapping("/parametres")
+    public SystemSettingsResponse getSettings() { return admin.getSettings(); }
+
+    @PutMapping("/parametres")
+    public SystemSettingsResponse updateSettings(@Valid @RequestBody UpdateSystemSettingsRequest r) {
+        return admin.updateSettings(r);
+    }
 }

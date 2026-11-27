@@ -58,6 +58,41 @@ public class PriorityService {
         return toResponse(c);
     }
 
+    /** RG4 : mise à jour groupée des pondérations de critères (par liste ou par map code -> poids). */
+    @Transactional
+    public List<CriterionResponse> updateWeightsBatch(BatchWeightUpdateRequest r) {
+        requirePriorityManager("Seul un administrateur ou un décideur habilité peut modifier les pondérations");
+        boolean hasList = r.criteria() != null && !r.criteria().isEmpty();
+        boolean hasMap = r.weights() != null && !r.weights().isEmpty();
+        if (!hasList && !hasMap) {
+            throw new BusinessRuleException("Au moins une pondération doit être fournie");
+        }
+        if (hasList) {
+            for (CriterionWeightUpdate item : r.criteria()) {
+                Criterion c = item.id() != null
+                        ? criteria.findById(item.id()).orElseThrow(() -> new NotFoundException("Critère introuvable"))
+                        : criteria.findByCode(item.code()).orElseThrow(() -> new NotFoundException("Critère introuvable : " + item.code()));
+                double old = c.getWeight();
+                c.setWeight(item.weight());
+                audit.log("CRITERION_WEIGHT_CHANGED", "Criterion", c.getId(), c.getCode() + " : " + old + " → " + item.weight());
+            }
+        }
+        if (hasMap) {
+            for (Map.Entry<String, Double> e : r.weights().entrySet()) {
+                if (e.getValue() == null || e.getValue() < 0) {
+                    throw new BusinessRuleException("Pondération invalide pour " + e.getKey());
+                }
+                Criterion c = criteria.findByCode(e.getKey())
+                        .orElseThrow(() -> new NotFoundException("Critère introuvable : " + e.getKey()));
+                double old = c.getWeight();
+                c.setWeight(e.getValue());
+                audit.log("CRITERION_WEIGHT_CHANGED", "Criterion", c.getId(), c.getCode() + " : " + old + " → " + e.getValue());
+            }
+        }
+        scoring.recalculate();
+        return listCriteria();
+    }
+
     @Transactional
     public CriterionResponse createCriterion(CriterionRequest r) {
         requirePriorityManager("Seul un administrateur peut créer un critère");

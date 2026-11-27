@@ -104,6 +104,20 @@ public final class NeedDtos {
 
     public record AttachmentResponse(Long id, String fileName, String contentType, long sizeBytes, Instant createdAt) {}
 
+    /** Brouillon ou soumission directe d'une contribution (compatibilité /api/contributions). */
+    public record ContributionRequest(
+            @NotBlank @Size(max = 200) String title,
+            @Size(max = 4000) String description,
+            Long categoryId,
+            Long zoneId,
+            @Size(max = 255) String address,
+            @DecimalMin("-90.0") @DecimalMax("90.0") Double latitude,
+            @DecimalMin("-180.0") @DecimalMax("180.0") Double longitude,
+            Urgency urgency,
+            Boolean draft) {}
+
+    public record SupportEntryResponse(Long id, Long userId, String supporterName, Instant createdAt) {}
+
     public record SupportResponse(Long needId, long supportCount, boolean supportedByMe) {}
 
     public record MapPoint(Long id, String title, double latitude, double longitude, String category,

@@ -91,8 +91,16 @@ public class NotificationService {
         Long userId = currentUser.require().getId();
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         return notifications.findByRecipientIdAndChannelOrderByCreatedAtDesc(userId, NotificationChannel.IN_APP, pageable)
-                .map(n -> new NotificationResponse(n.getId(), n.getSubject(), n.getMessage(),
-                        n.getNeed() != null ? n.getNeed().getId() : null, n.isRead(), n.getCreatedAt()));
+                .map(NotificationService::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<NotificationResponse> unread(int page, int size) {
+        Long userId = currentUser.require().getId();
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
+        return notifications.findByRecipientIdAndChannelAndReadFalseOrderByCreatedAtDesc(
+                        userId, NotificationChannel.IN_APP, pageable)
+                .map(NotificationService::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -102,11 +110,32 @@ public class NotificationService {
 
     @Transactional
     public void markRead(Long id) {
+        Notification n = loadOwned(id);
+        n.setRead(true);
+    }
+
+    @Transactional
+    public int markAllRead() {
+        return notifications.markAllRead(currentUser.require().getId(), NotificationChannel.IN_APP);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        Notification n = loadOwned(id);
+        notifications.delete(n);
+    }
+
+    private Notification loadOwned(Long id) {
         Notification n = notifications.findById(id).orElseThrow(() -> new NotFoundException("Notification introuvable"));
         if (n.getRecipient() == null || !n.getRecipient().getId().equals(currentUser.require().getId())) {
             throw new NotFoundException("Notification introuvable");
         }
-        n.setRead(true);
+        return n;
+    }
+
+    private static NotificationResponse toResponse(Notification n) {
+        return new NotificationResponse(n.getId(), n.getSubject(), n.getMessage(),
+                n.getNeed() != null ? n.getNeed().getId() : null, n.isRead(), n.getCreatedAt());
     }
 
     private void save(User user, Need need, NotificationChannel channel, String contact, String subject, String body, boolean sent) {

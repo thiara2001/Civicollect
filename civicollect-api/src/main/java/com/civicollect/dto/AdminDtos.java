@@ -6,6 +6,7 @@ import com.civicollect.domain.Role;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +14,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 public final class AdminDtos {
     private AdminDtos() {}
@@ -27,6 +30,35 @@ public final class AdminDtos {
             boolean habilitated) {}
 
     public record UpdateUserRequest(Role role, Long municipalServiceId, Boolean enabled, Boolean habilitated) {}
+
+    public record UpdateUserFullRequest(
+            @Size(max = 120) String fullName,
+            @Email String email,
+            @Pattern(regexp = AuthDtos.PHONE_REGEX, message = "Numéro de téléphone invalide") String phone,
+            Role role,
+            Long municipalServiceId,
+            Boolean enabled,
+            Boolean habilitated) {}
+
+    public record UpdateUserStatusRequest(@NotNull Boolean enabled) {}
+
+    public record UpdateUserRoleRequest(@NotNull Role role, Boolean habilitated) {}
+
+    public record AdminDashboardResponse(
+            long totalUsers, long activeUsers, Map<String, Long> usersByRole,
+            long totalCategories, long activeCategories, long totalQuartiers, long totalServices,
+            long totalContributions, long pendingModeration, long potentialDuplicates,
+            long totalAuditLogs, List<AuditEntry> recentLogs) {}
+
+    public record SystemSettingsResponse(
+            int scoringSupportCap, double duplicatesThreshold, int rateLimitPerHour,
+            long maxFileSizeBytes, long jwtExpirationMinutes) {}
+
+    public record UpdateSystemSettingsRequest(
+            @Min(1) @Max(1000) Integer scoringSupportCap,
+            @DecimalMin("0.05") @DecimalMax("1.0") Double duplicatesThreshold,
+            @Min(1) @Max(10000) Integer rateLimitPerHour,
+            @Min(1024) @Max(52428800) Long maxFileSizeBytes) {}
 
     /** Référentiel générique : catégorie (name, description), zone (name, lat, lon, population), service (name). */
     public record ReferenceRequest(

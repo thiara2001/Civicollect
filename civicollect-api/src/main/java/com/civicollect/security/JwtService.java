@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.UUID;
 
 @Service
 public class JwtService {
@@ -27,6 +28,7 @@ public class JwtService {
     public String generate(User user) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(user.getId()))
                 .claim("role", user.getRole().name())
                 .issuedAt(Date.from(now))
@@ -39,9 +41,13 @@ public class JwtService {
         return expirationMinutes;
     }
 
+    /** Valide la signature et l'expiration puis retourne les claims du JWT. */
+    public Claims parseClaims(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+    }
+
     /** Valide la signature et l'expiration puis retourne l'identifiant utilisateur. */
     public Long parseUserId(String token) {
-        Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-        return Long.valueOf(claims.getSubject());
+        return Long.valueOf(parseClaims(token).getSubject());
     }
 }

@@ -3,6 +3,7 @@ package com.civicollect.web;
 import com.civicollect.dto.NeedDtos.*;
 import com.civicollect.service.NeedService;
 import com.civicollect.service.PublicService;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @Tag(name = "Public (sans authentification)")
+@Hidden
 @RestController
 @RequestMapping("/api/public")
 @RequiredArgsConstructor

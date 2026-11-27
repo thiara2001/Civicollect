@@ -39,4 +39,12 @@ public final class PriorityDtos {
                                  @DecimalMin("0.0") @DecimalMax("10.0") double value) {}
 
     public record EvaluationRequest(@NotEmpty List<@Valid EvaluationItem> evaluations) {}
+
+    public record CriterionWeightUpdate(
+            Long id, String code,
+            @DecimalMin("0.0") @DecimalMax("100.0") double weight) {}
+
+    public record BatchWeightUpdateRequest(
+            List<@Valid CriterionWeightUpdate> criteria,
+            Map<String, @DecimalMin("0.0") @DecimalMax("100.0") Double> weights) {}
 }
